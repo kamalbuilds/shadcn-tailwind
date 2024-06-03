@@ -1,5 +1,5 @@
 {
-  "name": "next-template",
+  "name": "paywitharchid",
   "version": "0.0.2",
   "private": true,
   "scripts": {
@@ -24,6 +24,8 @@
     "react-dom": "^18.2.0",
     "sharp": "^0.31.3",
     "tailwind-merge": "^1.13.2",
+    "@archwayhq/arch3.js": "^0.7.0",
+    "@cosmjs/stargate": "^0.32.3",
     "tailwindcss-animate": "^1.0.6"
   },
   "devDependencies": {
