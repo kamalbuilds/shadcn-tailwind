@@ -8,7 +8,8 @@ import {
   BarChart, 
   Wallet, 
   ArrowUpRight, 
-  ArrowDownLeft 
+  ArrowDownLeft,
+  AlertCircle,
 } from 'lucide-react';
 import { DepositModal } from '@/components/deposit-modal';
 import { WithdrawalModal } from '@/components/withdrawal-modal';
@@ -16,9 +17,13 @@ import { PriceChart } from '@/components/price-chart';
 import { TransactionList } from '@/components/transaction-list';
 import { sbtcService } from '@/lib/sbtc-service';
 import { formatBTC, formatUSD, calculatePercentageChange } from '@/lib/utils';
+import { useBitcoin } from '@/lib/hooks/use-bitcoin';
+import { useSBTC } from '@/lib/hooks/use-sbtc';
 import type { Transaction, PortfolioStats } from '@/types/sbtc';
 
 export default function PortfolioPage() {
+  const { address } = useBitcoin();
+  const { supply, limits, isLoading: isSBTCLoading, error: sbtcError } = useSBTC();
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [stats, setStats] = useState<PortfolioStats>({
@@ -39,16 +44,14 @@ export default function PortfolioPage() {
         setIsLoading(true);
         setError('');
 
-        // In a real app, we would get the user's address from their wallet
-        const userAddress = localStorage.getItem('stacksAddress');
-        if (!userAddress) {
+        if (!address) {
           setError('Please connect your wallet');
           return;
         }
 
         const [portfolioStats, txHistory] = await Promise.all([
-          sbtcService.getPortfolioStats(userAddress),
-          sbtcService.getTransactions(userAddress),
+          sbtcService.getPortfolioStats(address),
+          sbtcService.getTransactions(address),
         ]);
 
         setStats(portfolioStats);
@@ -62,14 +65,13 @@ export default function PortfolioPage() {
     };
 
     fetchData();
-  }, []);
+  }, [address]);
 
   const handleDepositSuccess = (txId: string) => {
-    // Optimistically add the transaction to the list
     const newTx: Transaction = {
       id: txId,
       type: 'deposit',
-      amount: 0, // Will be updated when confirmed
+      amount: 0,
       status: 'pending',
       timestamp: new Date().toISOString(),
       txId,
@@ -78,18 +80,17 @@ export default function PortfolioPage() {
   };
 
   const handleWithdrawalSuccess = (requestId: string) => {
-    // Optimistically add the transaction to the list
     const newTx: Transaction = {
       id: requestId,
       type: 'withdrawal',
-      amount: 0, // Will be updated when confirmed
+      amount: 0,
       status: 'pending',
       timestamp: new Date().toISOString(),
     };
     setTransactions([newTx, ...transactions]);
   };
 
-  if (isLoading) {
+  if (isLoading || isSBTCLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-lg text-gray-500">Loading portfolio...</div>
@@ -97,10 +98,10 @@ export default function PortfolioPage() {
     );
   }
 
-  if (error) {
+  if (error || sbtcError) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-lg text-red-500">{error}</div>
+        <div className="text-lg text-red-500">{error || sbtcError}</div>
       </div>
     );
   }
@@ -157,16 +158,52 @@ export default function PortfolioPage() {
         </Card>
       </div>
 
+      {/* Protocol Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total sBTC Supply</p>
+              <p className="text-2xl font-bold">{supply ? formatBTC(supply.totalSupply) : '0 BTC'}</p>
+            </div>
+            <BarChart className="h-8 w-8 text-orange-500" />
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Protocol Limits</p>
+              <div className="space-y-1">
+                <p className="text-sm">
+                  Peg Cap: {limits ? formatBTC(limits.pegCap) : 'Unlimited'}
+                </p>
+                <p className="text-sm">
+                  Max Deposit: {limits ? formatBTC(limits.perDepositCap) : 'Unlimited'}
+                </p>
+                <p className="text-sm">
+                  Max Withdrawal: {limits ? formatBTC(limits.perWithdrawalCap) : 'Unlimited'}
+                </p>
+              </div>
+            </div>
+            <AlertCircle className="h-8 w-8 text-yellow-500" />
+          </div>
+        </Card>
+      </div>
+
       {/* Actions */}
       <div className="flex gap-4 mb-8">
-        <Button onClick={() => setIsDepositModalOpen(true)}>
+        <Button 
+          onClick={() => setIsDepositModalOpen(true)}
+          disabled={limits?.perDepositCap === 0}
+        >
           <ArrowUpRight className="mr-2 h-4 w-4" />
           Deposit BTC
         </Button>
         <Button 
           variant="outline"
           onClick={() => setIsWithdrawalModalOpen(true)}
-          disabled={stats.totalBalance === 0}
+          disabled={stats.totalBalance === 0 || limits?.perWithdrawalCap === 0}
         >
           <ArrowDownLeft className="mr-2 h-4 w-4" />
           Withdraw sBTC
