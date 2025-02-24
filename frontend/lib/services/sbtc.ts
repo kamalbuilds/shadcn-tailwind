@@ -1,7 +1,7 @@
 import { env } from '@/lib/env'
 import { getStacksNetwork } from '@/lib/utils/stacks'
 import {
-  fetchCallReadOnlyFunction,
+  callReadOnlyFunction,
   ResponseOkCV,
   UIntCV,
 } from '@stacks/transactions'
@@ -20,7 +20,7 @@ export interface SBTCSupply {
 class SBTCService {
   async getCurrentSupply(): Promise<SBTCSupply> {
     try {
-      const response = (await fetchCallReadOnlyFunction({
+      const response = (await callReadOnlyFunction({
         contractAddress: env.SBTC_CONTRACT_DEPLOYER!,
         contractName: 'sbtc-token',
         functionName: 'get-total-supply',
